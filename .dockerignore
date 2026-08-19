@@ -1,0 +1,19 @@
+# Build artifacts (rebuilt inside the image; excluding these keeps the build
+# context small and fast, and avoids leaking host-platform binaries in).
+**/bin/
+**/obj/
+**/node_modules/
+**/dist/
+**/.angular/
+**/.cache/
+
+# VCS / tooling, not needed inside images.
+.git/
+.claude/
+.vscode/
+.idea/
+
+# Misc
+.DS_Store
+*.user
+npm-debug.log*

@@ -1,0 +1,363 @@
+{
+  "openapi": "3.0.1",
+  "info": {
+    "title": "Relay.Api",
+    "version": "1.0"
+  },
+  "paths": {
+    "/api/accounts": {
+      "get": {
+        "tags": [
+          "WeeklySummaryEndpoints"
+        ],
+        "summary": "Lists every account for the demo account picker.",
+        "description": "This endpoint is a demo/reviewer affordance standing in for authenticated identity. In production the account would be resolved from the authenticated principal server-side, never supplied by the client.",
+        "operationId": "GetAccounts",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AccountResponse"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/accounts/{id}/weekly-summary": {
+      "get": {
+        "tags": [
+          "WeeklySummaryEndpoints"
+        ],
+        "summary": "Returns the classified weekly activity summary for one account and week.",
+        "description": "Compares the selected week against the median of up to the account's trailing 8 complete weeks. weekStart defaults to the account's current (in-progress) week when omitted, must be a Monday in the account's local timezone, and cannot be in the future.",
+        "operationId": "GetWeeklySummary",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "weekStart",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WeeklySummaryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AccountResponse": {
+        "required": [
+          "currentWeekStart",
+          "id",
+          "name",
+          "timezone"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "name": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "currentWeekStart": {
+            "type": "string",
+            "description": "The Monday (account-local) of the in-progress week — the dashboard's default selection.",
+            "format": "date"
+          },
+          "firstSelectableWeekStart": {
+            "type": "string",
+            "description": "The local week of the account's first-ever event, or null when the account has no activity at all\r\n(e.g. a freshly onboarded account) — nothing before this week is meaningful to select.",
+            "format": "date",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "One account, as surfaced by the demo account picker."
+      },
+      "HistoricalComparisonResponse": {
+        "required": [
+          "throughDate",
+          "total",
+          "weekStart"
+        ],
+        "type": "object",
+        "properties": {
+          "weekStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "throughDate": {
+            "type": "string",
+            "description": "The last local day in this historical window. When the reported week is still in progress this is\r\nthe equivalent elapsed cut, so a partial current week is never compared against full past weeks.",
+            "format": "date"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One historical window behind the baseline median, so a reader can inspect the samples instead of\r\ntaking the median on trust. These are the exact values the median was computed from, and a quiet\r\nwindow appears explicitly as `0` rather than being omitted."
+      },
+      "LocationSummaryResponse": {
+        "required": [
+          "byType",
+          "location",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "location": {
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/MetricComparisonResponse"
+          },
+          "byType": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeBreakdownResponse"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "description": "Per-location activity; Relay.Api.Features.WeeklySummary.LocationSummaryResponse.Total carries the location's verdict."
+      },
+      "MetricComparisonResponse": {
+        "required": [
+          "current",
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "baselineMedian": {
+            "type": "number",
+            "description": "Null means no baseline was computable at all (see the parent response's `dataStatus`). Zero\r\nmeans a baseline exists and is genuinely zero — there is nothing to compare magnitude against, so\r\nStatus is Relay.Api.Features.WeeklySummary.ActivityStatus.NoVerdict in that case too. These two null\r\ncases are intentionally distinguishable — do not collapse them.",
+            "format": "double",
+            "nullable": true
+          },
+          "deltaRatio": {
+            "type": "number",
+            "description": "A fraction, not a percentage: 0.25 means +25%. Null whenever Relay.Api.Features.WeeklySummary.MetricComparisonResponse.Status is\r\nRelay.Api.Features.WeeklySummary.ActivityStatus.NoVerdict.",
+            "format": "double",
+            "nullable": true
+          },
+          "status": {
+            "enum": [
+              "below",
+              "typical",
+              "above",
+              "noVerdict"
+            ],
+            "type": "string"
+          }
+        },
+        "additionalProperties": false,
+        "description": "A current value compared against its trailing baseline median."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "nullable": true
+          },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string",
+            "nullable": true
+          },
+          "instance": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": { }
+      },
+      "TypeBreakdownResponse": {
+        "required": [
+          "current",
+          "eventType"
+        ],
+        "type": "object",
+        "properties": {
+          "eventType": {
+            "type": "string"
+          },
+          "current": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "baselineMedian": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false,
+        "description": "Current-vs-baseline detail for a single event type. Carries no independent status."
+      },
+      "WeeklySummaryResponse": {
+        "required": [
+          "accountId",
+          "baselineWeeksUsed",
+          "byType",
+          "comparisonHistory",
+          "dataStatus",
+          "locations",
+          "throughDate",
+          "timezone",
+          "totals",
+          "weekEnd",
+          "weekStart"
+        ],
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "timezone": {
+            "type": "string"
+          },
+          "weekStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "weekEnd": {
+            "type": "string",
+            "format": "date"
+          },
+          "throughDate": {
+            "type": "string",
+            "description": "The last local day included in the comparison window, as a human-facing display value —\r\n`WeekEnd` for a completed week, or the anchor's local day for the in-progress week (in which\r\ncase `ThroughDate < WeekEnd`, which is how a caller knows the week is still in progress).\r\nThis is deliberately a display value only: the precise cutoff (day index plus local time-of-day)\r\nused to truncate baseline weeks for an honest apples-to-apples comparison stays inside the domain\r\nand is not exposed — no consumer needs the minute, and exposing it would invite the frontend to\r\nreimplement window math.",
+            "format": "date"
+          },
+          "dataStatus": {
+            "enum": [
+              "ok",
+              "insufficientHistory",
+              "noActivity"
+            ],
+            "type": "string"
+          },
+          "baselineWeeksUsed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/MetricComparisonResponse"
+          },
+          "byType": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeBreakdownResponse"
+            }
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LocationSummaryResponse"
+            },
+            "description": "Already sorted worst-first by the domain."
+          },
+          "comparisonHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoricalComparisonResponse"
+            },
+            "description": "The windows behind `totals.baselineMedian`, most recent first. Recomputing a median over\r\nthese totals reproduces `totals.baselineMedian` exactly."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The classified weekly summary for one account and one week."
+      }
+    }
+  }
+}

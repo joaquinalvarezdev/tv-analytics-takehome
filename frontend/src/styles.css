@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+/*
+ * Editorial palette for the DASH-247 redesign, defined once as CSS custom properties (Tailwind v4's
+ * `@theme` block) rather than scattered inline styles. `--font-*` and `--color-*` tokens are picked up
+ * by Tailwind's utility generator automatically, so `font-serif`, `bg-canvas`, `text-ink-muted`, etc.
+ * become real utility classes without a tailwind.config.* file.
+ */
+@theme {
+  --font-sans:
+    'Libre Franklin', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-serif: 'Newsreader', ui-serif, Georgia, 'Times New Roman', serif;
+
+  /* Surfaces */
+  --color-canvas: oklch(0.965 0.004 85);
+  --color-surface: oklch(0.985 0.003 85);
+  --color-border: oklch(0.9 0.005 70);
+  --color-border-strong: oklch(0.88 0.005 70);
+  --color-border-soft: oklch(0.92 0.004 75);
+
+  /* Ink (text), lightest to darkest is ghost -> ink */
+  --color-ink: oklch(0.26 0.008 60);
+  --color-ink-muted: oklch(0.38 0.008 60);
+  --color-ink-soft: oklch(0.45 0.01 60);
+  --color-ink-faint: oklch(0.5 0.01 60);
+  --color-ink-quiet: oklch(0.52 0.01 60);
+  --color-ink-subtle: oklch(0.58 0.01 60);
+  --color-ink-dim: oklch(0.6 0.01 60);
+  --color-ink-ghost: oklch(0.62 0.01 60);
+  --color-ink-whisper: oklch(0.65 0.008 60);
+
+  /* Accent: used for flagged (above/below normal) states. Deliberately a calm blue, not alarm-red —
+     the design's own choice, and it fits the "explain, don't alarm" tone the brief asks for. */
+  --color-accent: oklch(0.62 0.11 250);
+  --color-accent-strong: oklch(0.5 0.11 250);
+  --color-accent-soft: oklch(0.93 0.03 250);
+
+  /* Calm: used for typical/normal states. */
+  --color-calm: oklch(0.55 0.09 150);
+  --color-calm-soft: oklch(0.75 0.03 150);
+  --color-calm-faint: oklch(0.84 0.02 150);
+
+  /* Muted: used for noVerdict rows — deliberately neutral, never red/error-coded. */
+  --color-muted: oklch(0.6 0.006 60);
+  --color-muted-soft: oklch(0.82 0.006 60);
+
+  /* Chart chrome */
+  --color-track: oklch(0.93 0.004 80);
+  --color-tick: oklch(0.55 0.01 60);
+  --color-median-line: oklch(0.72 0.01 70);
+  --color-bar-quiet: oklch(0.87 0.01 250);
+}
+
+body {
+  background: var(--color-canvas);
+}
+
+/* A single, consistent focus style for every interactive element, since several components remove the
+   default outline in favour of custom hover styling. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
