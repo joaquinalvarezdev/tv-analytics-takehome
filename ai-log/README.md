@@ -32,6 +32,7 @@ are trustworthy — was delegated.
 | [08-backend-verification](08-backend-verification.md) | The oracle, the zero-fill audit, and what review changed |
 | [10-containerization](10-containerization.md) · [11-refinements](11-refinements.md) · [13-redesign](13-redesign.md) | Agent notes: Docker, prioritisation, the redesign |
 | [12-post-plan-refinement](12-post-plan-refinement.md) | Comparison history, recorded as a post-plan change rather than edited into `PLAN.md` |
+| [14-endpoint-tests-and-catch-all](14-endpoint-tests-and-catch-all.md) | Final review: endpoint tests, the ProblemDetails catch-all, and the 400 → 500 regression they caught |
 
 `PLAN.md` is left exactly as written before implementation. Where the shipped design diverges from it,
 the README says so plainly.

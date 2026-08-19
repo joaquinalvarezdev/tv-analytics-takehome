@@ -51,6 +51,7 @@ accepts connections; the compose healthcheck makes the API wait rather than race
 
 ```bash
 cd backend  && dotnet test    # domain: aggregation, timezone/DST, baselines, empty data
+                              # API:    contract validation, defaults, and error shapes
 cd frontend && npm test       # headless; formatting, state mapping, query-param persistence
 ```
 
@@ -196,8 +197,13 @@ principal server-side; a client-supplied account id would be an authorization ho
 | `GET /api/accounts` | Accounts plus each one's current week and earliest selectable week. Demo identity switcher. |
 | `GET /api/accounts/{id}/weekly-summary?weekStart=yyyy-MM-dd` | The classified comparison. Defaults to the current in-progress week. |
 
-`400` for a non-Monday, unparseable, or future `weekStart`; `404` for an unknown account. Swagger UI at
-`/swagger`.
+`400` for a non-Monday, unparseable, or future `weekStart`; `404` for an unknown account; `503` before the
+dataset has loaded. Swagger UI at `/swagger`.
+
+Every failure answers in `application/problem+json`, including an unexpected one: a catch-all handler turns
+any unhandled exception into a logged 500 ProblemDetails carrying no exception detail, so the SPA never has
+to describe an empty response body. These paths are covered by endpoint tests through the real pipeline —
+which is how the catch-all was caught regressing binding failures from `400` to `500` on its first run.
 
 The three data states are distinguished without magic numbers: `baselineMedian: null` means no baseline is
 computable (`insufficientHistory` / `noActivity`), while `baselineMedian: 0` means the baseline is genuinely
