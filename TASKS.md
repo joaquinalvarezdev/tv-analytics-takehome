@@ -82,7 +82,7 @@ Angular 21 workspace (`relay-dashboard`), standalone components, strict TS, Tail
 `account` + `weekStart` as URL query params exposed as signals. Lint, build and 15 headless tests pass.
 Angular pinned to 21.x because 22.x hard-fails its Node engine check on this machine (Node 24.10 < 24.15).
 
-## 4b. Frontend dashboard — `todo`
+## 4b. Frontend dashboard — `done`
 
 **Owner:** Sonnet agent · **Depends on:** 3 (needs the OpenAPI document to generate the client)
 
@@ -93,6 +93,12 @@ real visual treatment, not error styling.
 
 ---
 
-## 5. Cross-stack verification, README, ai-log reflection — `todo`
+## 5. Cross-stack verification, README, ai-log reflection — `in progress`
 
 **Owner:** orchestrator
+
+- [x] README rewritten (interpretation, assumptions, trade-offs, deferred work, plan divergence)
+- [x] Backend aggregates verified against an independent oracle (0 differences, 5 cases)
+- [x] Cross-stack run verified: `docker compose up -d` → API → `npm start`, dev proxy, and the
+      `noActivity` / `insufficientHistory` states confirmed through the full stack
+- [ ] ai-log reflection/index naming specific moments where agent output was corrected

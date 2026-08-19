@@ -7,7 +7,8 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "generate:api": "ng-openapi-gen"
   },
   "private": true,
   "packageManager": "npm@11.6.1",
@@ -30,6 +31,7 @@
     "angular-eslint": "21.4.0",
     "eslint": "^10.3.0",
     "jsdom": "^28.0.0",
+    "ng-openapi-gen": "^1.0.5",
     "postcss": "^8.5.26",
     "prettier": "^3.8.1",
     "tailwindcss": "^4.3.3",
