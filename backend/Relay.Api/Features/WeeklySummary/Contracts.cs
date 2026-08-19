@@ -46,6 +46,17 @@ public sealed record LocationSummaryResponse(
     IReadOnlyList<TypeBreakdownResponse> ByType);
 
 /// <summary>
+/// One historical window behind the baseline median, so a reader can inspect the samples instead of
+/// taking the median on trust. These are the exact values the median was computed from, and a quiet
+/// window appears explicitly as <c>0</c> rather than being omitted.
+/// </summary>
+/// <param name="ThroughDate">
+/// The last local day in this historical window. When the reported week is still in progress this is
+/// the equivalent elapsed cut, so a partial current week is never compared against full past weeks.
+/// </param>
+public sealed record HistoricalComparisonResponse(DateOnly WeekStart, DateOnly ThroughDate, int Total);
+
+/// <summary>
 /// The classified weekly summary for one account and one week.
 /// </summary>
 /// <param name="ThroughDate">
@@ -58,6 +69,10 @@ public sealed record LocationSummaryResponse(
 /// reimplement window math.
 /// </param>
 /// <param name="Locations">Already sorted worst-first by the domain.</param>
+/// <param name="ComparisonHistory">
+/// The windows behind <c>totals.baselineMedian</c>, most recent first. Recomputing a median over
+/// these totals reproduces <c>totals.baselineMedian</c> exactly.
+/// </param>
 public sealed record WeeklySummaryResponse(
     int AccountId,
     string Timezone,
@@ -68,4 +83,5 @@ public sealed record WeeklySummaryResponse(
     int BaselineWeeksUsed,
     MetricComparisonResponse Totals,
     IReadOnlyList<TypeBreakdownResponse> ByType,
-    IReadOnlyList<LocationSummaryResponse> Locations);
+    IReadOnlyList<LocationSummaryResponse> Locations,
+    IReadOnlyList<HistoricalComparisonResponse> ComparisonHistory);

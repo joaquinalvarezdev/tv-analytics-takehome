@@ -444,7 +444,182 @@ public class WeeklySummaryServiceTests
         Assert.Equal(5m, result.Totals.BaselineMedian); // median of [10, 10, 0, 0]
     }
 
+    // ---- comparison history: the samples behind the median ----
+
+    [Fact]
+    public void ComparisonHistory_ContainsTheEligibleBaselineWindows_MostRecentFirst()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        var events = BaselineAndCurrent(weekStart, "Main", "call_received", currentCount: 9,
+            baselineCounts: new[] { 11, 8, 10, 12, 9, 10, 7, 18 });
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        Assert.Equal(8, result.ComparisonHistory.Count);
+        Assert.Equal(result.BaselineWeeksUsed, result.ComparisonHistory.Count);
+        // Most recent first: weekStart-7, weekStart-14, ... weekStart-56.
+        Assert.Equal(
+            Enumerable.Range(1, 8).Select(i => weekStart.AddDays(-7 * i)),
+            result.ComparisonHistory.Select(h => h.WeekStart));
+        // ...carrying the counts those windows actually contain, in the same order.
+        Assert.Equal(new[] { 11, 8, 10, 12, 9, 10, 7, 18 }, result.ComparisonHistory.Select(h => h.Total));
+    }
+
+    [Fact]
+    public void ComparisonHistory_IncludesQuietWindowsAsExplicitZero()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        // Two of the eight eligible windows are genuinely empty. They are legitimate samples, so they
+        // must appear as 0 rather than being omitted — dropping them would bias the median upward.
+        var events = BaselineAndCurrent(weekStart, "Main", "call_received", currentCount: 5,
+            baselineCounts: new[] { 10, 0, 10, 0, 10, 10, 10, 10 });
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        Assert.Equal(8, result.ComparisonHistory.Count);
+        Assert.Equal(2, result.ComparisonHistory.Count(h => h.Total == 0));
+    }
+
+    [Fact]
+    public void ComparisonHistory_MedianOfReturnedTotals_ReproducesReportedBaselineMedian()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        // Deliberately an even number of windows with an odd spread, so the median lands on a .5 value
+        // and a mismatch between the two code paths could not hide behind integer rounding.
+        var events = BaselineAndCurrent(weekStart, "Main", "call_received", currentCount: 9,
+            baselineCounts: new[] { 11, 8, 10, 12, 9, 10, 7, 18 });
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        var recomputed = MedianOf(result.ComparisonHistory.Select(h => h.Total));
+        Assert.Equal(result.Totals.BaselineMedian, recomputed);
+    }
+
+    [Fact]
+    public void ComparisonHistory_ForInProgressWeek_UsesEquivalentElapsedWindows()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        var anchorUtc = LocalInstantUtc(weekStart, new TimeOnly(15, 20), Chicago); // Monday 15:20 local
+
+        // Every week (reported and baseline alike) has one event before the cutoff time and one after.
+        // The equivalent-window rule must count only the pre-cutoff event in *every* window — comparing
+        // a partial Monday against full historical Mondays is exactly the bias this prevents.
+        var events = new List<ActivityEventRecord>();
+        foreach (var offset in Enumerable.Range(0, 9))
+        {
+            var window = weekStart.AddDays(-7 * offset);
+            events.Add(new("Main", "call_received", LocalInstantUtc(window, new TimeOnly(10, 0), Chicago)));
+            events.Add(new("Main", "call_received", LocalInstantUtc(window, new TimeOnly(18, 0), Chicago)));
+        }
+
+        var result = new WeeklySummaryService()
+            .Build(new WeeklySummaryInput(Chicago, weekStart, anchorUtc, EarlyFirstEvent, events));
+
+        Assert.Equal(1, result.Totals.Current);
+        Assert.All(result.ComparisonHistory, h => Assert.Equal(1, h.Total));
+        // The cut falls on day index 0, so each historical window ends on its own Monday — not its Sunday.
+        Assert.All(result.ComparisonHistory, h => Assert.Equal(h.WeekStart, h.ThroughDate));
+    }
+
+    [Fact]
+    public void ComparisonHistory_ForCompletedWeek_UsesWholeWeeks()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        var events = BaselineAndCurrent(weekStart, "Main", "call_received", currentCount: 5,
+            baselineCounts: Enumerable.Repeat(5, 8).ToArray());
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        Assert.Equal(result.WeekEnd, result.ThroughDate);
+        Assert.All(result.ComparisonHistory, h => Assert.Equal(h.WeekStart.AddDays(6), h.ThroughDate));
+    }
+
+    [Fact]
+    public void ComparisonHistory_IsStillReturned_WhenHistoryIsTooShortForAVerdict()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        // Only 3 fully-observed weeks precede the reported week, so there is no verdict — but showing
+        // the windows that do exist is more honest than showing nothing.
+        var firstEventUtc = LocalInstantUtc(weekStart.AddDays(-21), new TimeOnly(9, 0), Chicago);
+        var events = BaselineAndCurrent(weekStart, "Main", "call_received", currentCount: 4,
+            baselineCounts: new[] { 6, 7, 5 });
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, firstEventUtc));
+
+        Assert.Equal(DataStatus.InsufficientHistory, result.DataStatus);
+        Assert.Null(result.Totals.BaselineMedian);
+        Assert.Equal(3, result.ComparisonHistory.Count);
+        Assert.Equal(new[] { 6, 7, 5 }, result.ComparisonHistory.Select(h => h.Total));
+    }
+
+    [Fact]
+    public void ComparisonHistory_IsEmpty_ForAnAccountWithNoActivity()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+
+        var result = new WeeklySummaryService()
+            .Build(MakeInput(weekStart, Array.Empty<ActivityEventRecord>(), firstEventUtc: null));
+
+        Assert.Equal(DataStatus.NoActivity, result.DataStatus);
+        Assert.Empty(result.ComparisonHistory);
+    }
+
+    // ---- prioritisation: what the dashboard must still be able to show ----
+
+    [Fact]
+    public void ZeroBaselineLocations_ArePreserved_NotFilteredOut()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        // "Busy" has a real baseline; "Quiet" is usually silent in this window, so its median is 0 and
+        // it earns NoVerdict. It must still be returned — a sparse location dropping off the list would
+        // hide exactly the row an admin might need to look at.
+        var events = new List<ActivityEventRecord>();
+        events.AddRange(BaselineAndCurrent(weekStart, "Busy", "call_received", currentCount: 10,
+            baselineCounts: Enumerable.Repeat(10, 8).ToArray()));
+        events.AddRange(WeekOf(weekStart, "Quiet", "call_received", 2));
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        var quiet = result.Locations.Single(l => l.Location == "Quiet");
+        Assert.Equal(ActivityStatus.NoVerdict, quiet.Total.Status);
+        Assert.Equal(0m, quiet.Total.BaselineMedian);
+        Assert.Equal(2, quiet.Total.Current);
+    }
+
+    [Fact]
+    public void LocationByTypeCurrents_SumToThatLocationsTotal()
+    {
+        var weekStart = new DateOnly(2026, 6, 1);
+        // The per-type breakdown is what the UI uses to say which activity type moved most, so it has
+        // to reconcile with the location total it sits under.
+        var events = new List<ActivityEventRecord>();
+        events.AddRange(BaselineAndCurrent(weekStart, "Site D", "call_received", currentCount: 3,
+            baselineCounts: Enumerable.Repeat(7, 8).ToArray()));
+        events.AddRange(BaselineAndCurrent(weekStart, "Site D", "lead_created", currentCount: 2,
+            baselineCounts: Enumerable.Repeat(2, 8).ToArray()));
+        events.AddRange(BaselineAndCurrent(weekStart, "Site D", "appointment_set", currentCount: 2,
+            baselineCounts: Enumerable.Repeat(2, 8).ToArray()));
+
+        var result = new WeeklySummaryService().Build(MakeInput(weekStart, events, EarlyFirstEvent));
+
+        var site = result.Locations.Single(l => l.Location == "Site D");
+        Assert.Equal(7, site.Total.Current);
+        Assert.Equal(site.Total.Current, site.ByType.Sum(t => t.Current));
+        Assert.Equal(ActivityStatus.Below, site.Total.Status); // 7 vs 11: clears both threshold and floor
+        // Calls moved by 4; the other two types did not move at all.
+        Assert.Equal(7m, site.ByType.Single(t => t.EventType == "call_received").BaselineMedian);
+        Assert.Equal(3, site.ByType.Single(t => t.EventType == "call_received").Current);
+    }
+
     // ---- test helpers ----
+
+    /// <summary>Mirrors the service's median so a test can independently re-derive it from the history.</summary>
+    private static decimal MedianOf(IEnumerable<int> values)
+    {
+        var sorted = values.OrderBy(v => v).ToList();
+        var n = sorted.Count;
+        return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2m;
+    }
 
     /// <remarks>
     /// Chicago-only by design: the event-building helpers below place events at Chicago local noon,

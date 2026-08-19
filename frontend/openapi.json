@@ -148,6 +148,31 @@
         "additionalProperties": false,
         "description": "One account, as surfaced by the demo account picker."
       },
+      "HistoricalComparisonResponse": {
+        "required": [
+          "throughDate",
+          "total",
+          "weekStart"
+        ],
+        "type": "object",
+        "properties": {
+          "weekStart": {
+            "type": "string",
+            "format": "date"
+          },
+          "throughDate": {
+            "type": "string",
+            "description": "The last local day in this historical window. When the reported week is still in progress this is\r\nthe equivalent elapsed cut, so a partial current week is never compared against full past weeks.",
+            "format": "date"
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false,
+        "description": "One historical window behind the baseline median, so a reader can inspect the samples instead of\r\ntaking the median on trust. These are the exact values the median was computed from, and a quiet\r\nwindow appears explicitly as `0` rather than being omitted."
+      },
       "LocationSummaryResponse": {
         "required": [
           "byType",
@@ -263,6 +288,7 @@
           "accountId",
           "baselineWeeksUsed",
           "byType",
+          "comparisonHistory",
           "dataStatus",
           "locations",
           "throughDate",
@@ -320,6 +346,13 @@
               "$ref": "#/components/schemas/LocationSummaryResponse"
             },
             "description": "Already sorted worst-first by the domain."
+          },
+          "comparisonHistory": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoricalComparisonResponse"
+            },
+            "description": "The windows behind `totals.baselineMedian`, most recent first. Recomputing a median over\r\nthese totals reproduces `totals.baselineMedian` exactly."
           }
         },
         "additionalProperties": false,

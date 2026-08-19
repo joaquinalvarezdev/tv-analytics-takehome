@@ -66,6 +66,23 @@ public sealed record TypeBreakdown(string EventType, int Current, decimal? Basel
 /// </summary>
 public sealed record LocationSummary(string Location, MetricComparison Total, IReadOnlyList<TypeBreakdown> ByType);
 
+/// <summary>
+/// One historical window behind the baseline median, exposed so a reader can inspect the samples
+/// rather than take the median on trust.
+/// </summary>
+/// <remarks>
+/// These are the <em>exact</em> values the median was computed from — the same window list and the
+/// same cutoff — not an independent recomputation. A window with no events appears explicitly as
+/// <see cref="Total"/> <c>0</c>, because an observed-but-quiet week is a legitimate sample and
+/// dropping it would bias the median upward.
+/// </remarks>
+/// <param name="ThroughDate">
+/// The last local day included in this historical window. For an in-progress reported week this is
+/// the equivalent elapsed cut, not the window's Sunday — a partial current week is never compared
+/// against full historical weeks.
+/// </param>
+public sealed record BaselineWindow(DateOnly WeekStart, DateOnly ThroughDate, int Total);
+
 /// <param name="ThroughDate">
 /// The last local day included in the comparison window, as a human-friendly display value —
 /// <c>WeekEnd</c> for a completed week, or the anchor's local day for the in-progress week. This is
@@ -73,6 +90,12 @@ public sealed record LocationSummary(string Location, MetricComparison Total, IR
 /// truncate baseline weeks for an honest apples-to-apples comparison is owned by the domain and not
 /// exposed, because no consumer needs the minute and exposing it would invite callers to reimplement
 /// window math.
+/// </param>
+/// <param name="ComparisonHistory">
+/// The account-level historical windows behind <see cref="Totals"/>'s baseline median, most recent
+/// first. Populated with whatever windows are eligible even when <see cref="DataStatus"/> is not
+/// <see cref="DataStatus.Ok"/> (showing the one or two windows that do exist is more honest than
+/// showing nothing); empty when the account has no observed history at all.
 /// </param>
 public sealed record WeeklySummaryResult(
     DateOnly WeekStart,
@@ -82,4 +105,5 @@ public sealed record WeeklySummaryResult(
     int BaselineWeeksUsed,
     MetricComparison Totals,
     IReadOnlyList<TypeBreakdown> ByType,
-    IReadOnlyList<LocationSummary> Locations);
+    IReadOnlyList<LocationSummary> Locations,
+    IReadOnlyList<BaselineWindow> ComparisonHistory);

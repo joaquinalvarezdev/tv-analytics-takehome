@@ -16,6 +16,9 @@ internal static class WeeklySummaryMapping
     public static LocationSummaryResponse ToResponse(this LocationSummary l)
         => new(l.Location, l.Total.ToResponse(), l.ByType.Select(t => t.ToResponse()).ToList());
 
+    public static HistoricalComparisonResponse ToResponse(this BaselineWindow w)
+        => new(w.WeekStart, w.ThroughDate, w.Total);
+
     public static WeeklySummaryResponse ToResponse(this WeeklySummaryResult r, int accountId, string timezone)
         => new(
             accountId,
@@ -27,5 +30,6 @@ internal static class WeeklySummaryMapping
             r.BaselineWeeksUsed,
             r.Totals.ToResponse(),
             r.ByType.Select(t => t.ToResponse()).ToList(),
-            r.Locations.Select(l => l.ToResponse()).ToList());
+            r.Locations.Select(l => l.ToResponse()).ToList(),
+            r.ComparisonHistory.Select(w => w.ToResponse()).ToList());
 }

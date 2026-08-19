@@ -77,7 +77,15 @@ public sealed class WeeklySummaryService
         var baselineEvents = baselineWeekStarts.SelectMany(WindowedWeek).ToList();
 
         // ----- Account-level totals -----
-        var totalBaselineWeekly = baselineWeekStarts.Select(w => WindowedWeek(w).Count).ToList();
+        // The baseline samples are materialised once, here, and the median is then computed *from the
+        // very list that is returned* as ComparisonHistory. That makes the "history shows the samples
+        // the median actually used" invariant structural rather than something two code paths have to
+        // agree about. Each window carries the same cutoff as the reported week, so a partial current
+        // week is compared against equivalent partial historical windows.
+        var comparisonHistory = baselineWeekStarts
+            .Select(w => new BaselineWindow(w, ThroughDateFor(w, cutoff), WindowedWeek(w).Count))
+            .ToList();
+        var totalBaselineWeekly = comparisonHistory.Select(h => h.Total).ToList();
         var totals = Classify(reportedWeekEvents.Count, totalBaselineWeekly, dataStatus);
 
         // ----- Account-level by-type -----
@@ -98,19 +106,16 @@ public sealed class WeeklySummaryService
 
         var sortedLocations = SortLocationsWorstFirst(locationSummaries);
 
-        // The last local day included in the comparison window — WeekEnd for a completed week
-        // (cutoff.DayIndex == 7, the whole week), or the anchor's local day for the in-progress week.
-        var throughDate = cutoff.DayIndex >= 7 ? weekEnd : weekStart.AddDays(cutoff.DayIndex);
-
         return new WeeklySummaryResult(
             weekStart,
             weekEnd,
-            throughDate,
+            ThroughDateFor(weekStart, cutoff),
             dataStatus,
             baselineWeeksUsed,
             totals,
             byType,
-            sortedLocations);
+            sortedLocations,
+            comparisonHistory);
     }
 
     private static LocationSummary BuildLocationSummary(
@@ -265,6 +270,14 @@ public sealed class WeeklySummaryService
     /// whole week, encoded as <c>DayIndex = 7</c> so every <c>idx</c> 0..6 satisfies <c>idx &lt; 7</c>.
     /// The in-progress week is truncated at the anchor's local day and time-of-day.
     /// </summary>
+    /// <summary>
+    /// The last local day included in a window under <paramref name="cutoff"/> — the week's Sunday for
+    /// a whole-week cutoff, otherwise the cut day. Shared by the reported week and every historical
+    /// window so their displayed through-dates are produced by one rule, not two.
+    /// </summary>
+    private static DateOnly ThroughDateFor(DateOnly weekStart, (int DayIndex, TimeOnly TimeOfDay) cutoff)
+        => weekStart.AddDays(cutoff.DayIndex >= 7 ? 6 : cutoff.DayIndex);
+
     private static (int DayIndex, TimeOnly TimeOfDay) ComputeCutoff(DateTime anchorUtc, TimeZoneInfo tz, DateOnly weekStart)
     {
         if (weekStart != ReportingCalendar.CurrentWeekStart(anchorUtc, tz))
