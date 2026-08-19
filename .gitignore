@@ -19,3 +19,6 @@ yarn-error.log*
 pnpm-debug.log*
 # Local environment overrides
 .env
+
+# Transient git worktrees used to isolate parallel agents
+.claude/worktrees/

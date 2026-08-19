@@ -5,7 +5,10 @@ services:
       ACCEPT_EULA: "Y"
       MSSQL_SA_PASSWORD: "RelayLocal123!"
     ports:
-      - "1433:1433"
+      # Host port 14330, not 1433: a locally installed SQL Server instance commonly owns 1433, and
+      # the resulting failure is an opaque login error rather than a port clash. Container-side stays
+      # 1433. Connection string: Server=localhost,14330 (see appsettings.Development.json).
+      - "14330:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
 
