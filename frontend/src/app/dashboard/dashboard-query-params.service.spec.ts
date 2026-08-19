@@ -114,6 +114,30 @@ describe('DashboardQueryParamsService', () => {
     expect(service.weekStart()).toBeNull();
   });
 
+  it('sets account and week in one navigation, so neither change is lost', () => {
+    // Regression guard. Switching account must also clear the week (a week valid for one account may
+    // not exist for another). Doing that as setAccount() then setWeekStart() silently dropped the
+    // account: Router.navigate is async, so the second call merged its params against the URL as it
+    // was *before* the first navigation committed. Account switching was broken this way from the
+    // dashboard's first commit until a browser caught it — every unit test passed throughout,
+    // because each call is correct in isolation.
+    const service = TestBed.inject(DashboardQueryParamsService);
+    setUrlParams({ weekStart: '2026-06-01' });
+
+    service.setAccountAndWeek(8, null);
+
+    expect(navigate).toHaveBeenCalledTimes(1);
+    expect(navigate).toHaveBeenCalledWith(
+      [],
+      expect.objectContaining({
+        queryParams: { account: '8', weekStart: null },
+        queryParamsHandling: 'merge',
+      }),
+    );
+    expect(service.account()).toBe(8);
+    expect(service.weekStart()).toBeNull();
+  });
+
   it('round-trips setAccount through the URL back into the signal', () => {
     const service = TestBed.inject(DashboardQueryParamsService);
 

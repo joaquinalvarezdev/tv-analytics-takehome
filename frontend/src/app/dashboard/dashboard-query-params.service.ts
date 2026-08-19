@@ -68,6 +68,22 @@ export class DashboardQueryParamsService {
     this.updateQueryParams({ weekStart });
   }
 
+  /**
+   * Sets both params in a SINGLE navigation.
+   *
+   * Calling `setAccount()` and `setWeekStart()` back to back does not work: `Router.navigate` is
+   * asynchronous, so the second call merges its params against the URL as it was *before* the first
+   * navigation committed, silently discarding the account change. Switching account also has to
+   * clear the week (a week valid for one account may not exist for another), so that pairing is
+   * exactly the case that needs to be atomic.
+   */
+  setAccountAndWeek(account: number | null, weekStart: string | null): void {
+    this.updateQueryParams({
+      account: account === null ? null : String(account),
+      weekStart,
+    });
+  }
+
   private updateQueryParams(queryParams: Record<string, string | null>): void {
     void this.router.navigate([], {
       relativeTo: this.route,

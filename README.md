@@ -10,30 +10,40 @@ and which of their locations needs attention.
 
 ---
 
-## Running it locally
+## Running it
 
-Prerequisites: Docker, .NET 8 SDK, Node 20+.
+### Option A — everything in Docker (only Docker required)
 
 ```bash
-# 1. Database (SQL Server 2022)
-docker compose up -d
-
-# 2. API — applies migrations and imports seed.sql on first run
-cd backend
-dotnet run --project Relay.Api          # http://localhost:5041  (Swagger at /swagger)
-
-# 3. Frontend (separate terminal)
-cd frontend
-npm ci
-npm start                                # http://localhost:4200
+docker compose up          # first run builds the images
 ```
 
-The API applies its EF migration and seeds the database automatically on startup. Seeding is idempotent —
-it skips entirely if `accounts` already has rows — so restarting is safe.
+| | URL |
+|---|---|
+| Dashboard | http://localhost:8080 |
+| API / Swagger | http://localhost:8081/swagger |
+
+### Option B — local dev loop (Docker + .NET 8 SDK + Node 20+)
+
+```bash
+docker compose up -d sqlserver           # database only
+
+cd backend && dotnet run --project Relay.Api    # http://localhost:5041 (Swagger at /swagger)
+
+cd frontend && npm ci && npm start              # http://localhost:4200
+```
+
+The dev server proxies `/api` to the API, so the SPA uses relative URLs and there is no CORS or base-URL
+setup in either mode.
+
+In both cases the API applies its EF migration and imports `seed.sql` on startup. Seeding is idempotent — it
+skips entirely if `accounts` already has rows — so restarting is safe. SQL Server needs 20–40s before it
+accepts connections; the compose healthcheck makes the API wait rather than race it.
 
 > **Port note:** compose maps host port **14330** → container 1433, not the usual 1433. A locally installed
 > SQL Server instance very commonly owns 1433, and the resulting failure is an opaque login error rather than
-> an obvious port clash. Change it in `docker-compose.yaml` and `appsettings.Development.json` if you prefer.
+> an obvious port clash. The containerized app uses 8080/8081 so it can run alongside the dev servers on
+> 4200/5041.
 
 ### Running the tests
 

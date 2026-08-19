@@ -1,4 +1,7 @@
+import type { HistoricalComparisonResponse } from '../api/generated/models/historical-comparison-response';
+import type { LocationSummaryResponse } from '../api/generated/models/location-summary-response';
 import type { MetricComparisonResponse } from '../api/generated/models/metric-comparison-response';
+import type { TypeBreakdownResponse } from '../api/generated/models/type-breakdown-response';
 import type { WeeklySummaryResponse } from '../api/generated/models/weekly-summary-response';
 
 /**
@@ -117,6 +120,50 @@ export function generateWeekOptions(firstSelectableWeekStart: string | null, cur
 }
 
 /**
+ * Label for one option in the week picker: the full Mon-Sun range rather than the bare start date,
+ * so the control reads as "which period am I looking at" instead of a static timestamp. Built from
+ * the existing range/step helpers — no new date maths.
+ */
+export function weekOptionLabel(weekStart: string, inProgress: boolean): string {
+  const label = formatWeekRange(weekStart, addDaysToDateString(weekStart, 6));
+  return inProgress ? `${label} (in progress)` : label;
+}
+
+/** One month's worth of week options, so a long week list stays scannable in a native `<optgroup>`. */
+export interface WeekOptionGroup {
+  readonly label: string;
+  readonly weeks: readonly { readonly value: string; readonly label: string }[];
+}
+
+/**
+ * Groups week options under their starting month.
+ *
+ * Weeks are chosen chronologically, never by text search — substring-matching a date is meaningless
+ * (typing "3" would match 13 Jul, 31 May, 3 May and 23 Feb alike), so this feeds an ordered
+ * `<select>` rather than a type-to-filter box. Grouping by month keeps ~27 options navigable.
+ * A week straddling a month boundary is filed under the month it starts in.
+ */
+export function groupWeekOptionsByMonth(weeks: readonly string[]): WeekOptionGroup[] {
+  const groups: { label: string; weeks: { value: string; label: string }[] }[] = [];
+
+  weeks.forEach((week, index) => {
+    const { year, month } = parseDateParts(week);
+    const groupLabel = `${MONTH_NAMES[month - 1]} ${year}`;
+    // Index 0 is the newest week, which is the in-progress one.
+    const option = { value: week, label: weekOptionLabel(week, index === 0) };
+
+    const current = groups[groups.length - 1];
+    if (current && current.label === groupLabel) {
+      current.weeks.push(option);
+    } else {
+      groups.push({ label: groupLabel, weeks: [option] });
+    }
+  });
+
+  return groups;
+}
+
+/**
  * `deltaRatio` is a fraction (0.25 === +25%), never a pre-multiplied percentage. This is the single
  * place that multiplies by 100 and formats the sign, so nothing downstream can accidentally render
  * the raw fraction as if it were already a percentage.
@@ -174,6 +221,231 @@ export function describeStatus(status: ActivityStatus, baselineMedian: number | 
             toneClass: 'border-slate-300 bg-slate-50 text-slate-700',
           };
   }
+}
+
+export type RowTone = 'flagged' | 'calm' | 'muted';
+
+/**
+ * Maps a status to a visual tone for a bar/dot row. `flagged` (above/below) always gets a distinct
+ * font-weight/shape treatment on top of colour — see the row components — so the flagged/unflagged
+ * distinction never depends on colour perception alone.
+ */
+export function rowTone(status: ActivityStatus): RowTone {
+  if (status === 'above' || status === 'below') {
+    return 'flagged';
+  }
+  return status === 'typical' ? 'calm' : 'muted';
+}
+
+/**
+ * Label for one `HistoricalComparisonResponse` window: a single date when the window is a partial
+ * elapsed window (`throughDate === weekStart`, e.g. every window behind an in-progress current
+ * week), or a week range otherwise. Delegates entirely to the existing date-formatting helpers — no
+ * new date arithmetic.
+ */
+export function formatHistoryWindowLabel(window: Pick<HistoricalComparisonResponse, 'weekStart' | 'throughDate'>): string {
+  return window.throughDate === window.weekStart
+    ? formatHumanDate(window.weekStart)
+    : formatWeekRange(window.weekStart, window.throughDate);
+}
+
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  call_received: 'Calls',
+  lead_created: 'Leads',
+  appointment_set: 'Appointments',
+};
+
+/**
+ * Human label for a raw `eventType` key (e.g. `call_received` → `Calls`). Falls back to a generic
+ * humanization for any type not in the known set, so a future event type never renders blank. The
+ * single mapping used everywhere an event type is shown, so the account-wide breakdown, each
+ * location's "why" detail, and the "largest change" line never drift out of sync with each other.
+ */
+export function eventTypeLabel(eventType: string): string {
+  return EVENT_TYPE_LABELS[eventType] ?? eventType.replace(/_/g, ' ');
+}
+
+/**
+ * The single event type that moved the most, as `|current − baselineMedian|`, among `byType`.
+ * Types with a null baseline are skipped (no basis for comparison). Returns `null` — deliberately,
+ * so callers show nothing rather than a misleading pick — when no type has a non-zero change, or
+ * when the largest change is tied between two or more types. Never implies *why* the number moved,
+ * only *which* type moved most; callers must not editorialize beyond that.
+ */
+export function largestChangeType(byType: TypeBreakdownResponse[]): string | null {
+  // flatMap rather than filter+map so the null check actually narrows the type — `.filter()` can't
+  // carry that narrowing through, which is what would otherwise force an `as number` cast here.
+  const changes = byType
+    .flatMap((row) =>
+      row.baselineMedian === null || row.baselineMedian === undefined
+        ? []
+        : [{ eventType: row.eventType, change: Math.abs(row.current - row.baselineMedian) }],
+    )
+    .filter((row) => row.change > 0);
+
+  if (changes.length === 0) {
+    return null;
+  }
+
+  const maxChange = Math.max(...changes.map((row) => row.change));
+  const winners = changes.filter((row) => row.change === maxChange);
+  return winners.length === 1 ? winners[0].eventType : null;
+}
+
+/**
+ * Locations whose verdict needs a human look — `below` or `above` — in the exact order the API
+ * already returned them (worst-first). Never re-sorts. Excludes `typical` (nothing to flag) and
+ * `noVerdict` (no baseline exists yet to judge against, so it isn't "needs attention" — it belongs
+ * only in the full locations table).
+ */
+export function filterNeedsAttention(locations: LocationSummaryResponse[]): LocationSummaryResponse[] {
+  return locations.filter((loc) => loc.total.status === 'below' || loc.total.status === 'above');
+}
+
+/**
+ * The hero's uppercase period line: the week range plus whether it is in progress (and, if so,
+ * through which day) or complete. e.g. "20–26 Jul 2026 · complete" or
+ * "27 Jul – 2 Aug 2026 · in progress · through Mon 27 Jul 2026".
+ */
+export function formatPeriodLine(weekStart: string, weekEnd: string, throughDate: string): string {
+  const range = formatWeekRange(weekStart, weekEnd);
+  return isWeekInProgress(throughDate, weekEnd)
+    ? `${range} · in progress · through ${formatHumanDate(throughDate, true)}`
+    : `${range} · complete`;
+}
+
+export interface BarGeometry {
+  /** Fill width as a percentage of the row group's `max`, clamped to [0, 100]. */
+  readonly widthPct: number;
+  /** Median-tick position as a percentage of the same `max`, or `null` when no baseline exists to mark. */
+  readonly tickPct: number | null;
+}
+
+/**
+ * Bar fill width and median-tick position for one row, both expressed as percentages of `max` — the
+ * largest value across the whole row group (e.g. every type's current/usual together), so bars stay
+ * visually comparable within that group rather than each being scaled to itself.
+ *
+ * `max <= 0` (an all-zero group) returns a zero-width bar and no tick rather than dividing by zero.
+ * A `baselineMedian` of `null`/`undefined` returns `tickPct: null` — distinct from a real `0` median,
+ * which still gets a tick at position 0.
+ */
+export function barGeometry(current: number, baselineMedian: number | null | undefined, max: number): BarGeometry {
+  if (max <= 0) {
+    return { widthPct: 0, tickPct: null };
+  }
+  const widthPct = Math.max(0, Math.min(100, (current / max) * 100));
+  const tickPct =
+    baselineMedian === null || baselineMedian === undefined
+      ? null
+      : Math.max(0, Math.min(100, (baselineMedian / max) * 100));
+  return { widthPct, tickPct };
+}
+
+export interface TrendBar {
+  /** Compact axis label, e.g. "6 Apr" — kept short so nine columns fit without scrolling. */
+  readonly label: string;
+  /** The window's full human range, for the tooltip and the chart's accessible table. */
+  readonly fullLabel: string;
+  readonly value: number;
+  readonly heightPct: number;
+  readonly isNow: boolean;
+}
+
+export interface TrendChart {
+  /** Oldest window first, ending with the current period ("now"). */
+  readonly bars: readonly TrendBar[];
+  /** Dashed median-line position as a percentage of chart height, or `null` when no baseline exists
+   *  (`insufficientHistory`) — distinct from a real `0` median, which still draws a line at the base. */
+  readonly medianPct: number | null;
+}
+
+/**
+ * The comparison-history bar chart's geometry: `comparisonHistory` (most-recent-first, per its own
+ * doc comment) reversed into chronological order with the current period appended as the highlighted
+ * "now" bar, each scaled against the tallest value in the set — including the median itself, so the
+ * dashed line never draws above the tallest bar.
+ */
+/**
+ * A compact axis label for one chart column: day + short month, e.g. "6 Apr".
+ *
+ * The chart shows nine columns side by side, so a full range ("27 Apr – 3 May 2026") forces each
+ * column wider than the card and pushes the most important bar — "now" — out of view behind a
+ * horizontal scroll. The full range stays available in the chart's accessible table and each
+ * column's tooltip; the axis only needs enough to place the window in time.
+ */
+export function formatAxisDate(dateStr: string): string {
+  const { month, day } = parseDateParts(dateStr);
+  return `${day} ${MONTH_NAMES[month - 1]}`;
+}
+
+export function buildTrendChart(
+  history: readonly HistoricalComparisonResponse[],
+  currentTotal: number,
+  weekInProgress: boolean,
+  baselineMedian: number | null | undefined,
+): TrendChart {
+  const points = [...history].reverse().map((window) => ({
+    label: formatAxisDate(window.weekStart),
+    fullLabel: formatHistoryWindowLabel(window),
+    value: window.total,
+    isNow: false,
+  }));
+  points.push({
+    label: weekInProgress ? 'So far' : 'This week',
+    fullLabel: weekInProgress ? 'This week so far' : 'This week',
+    value: currentTotal,
+    isNow: true,
+  });
+
+  const max = Math.max(1, ...points.map((p) => p.value), baselineMedian ?? 0);
+  const bars = points.map((p) => ({ ...p, heightPct: Math.max(4, Math.round((p.value / max) * 100)) }));
+  const medianPct =
+    baselineMedian === null || baselineMedian === undefined
+      ? null
+      : Math.max(0, Math.min(100, (baselineMedian / max) * 100));
+
+  return { bars, medianPct };
+}
+
+/**
+ * The "Why?" explanation sentence for one location row — plain language grounded in the row's real
+ * `status`/`current`/`baselineMedian`, never a recomputation of the above/below threshold itself
+ * (that stays exclusively the backend's call; recreating it client-side would risk silently drifting
+ * from what "normal" actually means). `noVerdict` gets a calm, non-alarming sentence that still
+ * distinguishes a null baseline (no history yet) from a genuine zero baseline.
+ */
+export function describeLocationWhy(loc: LocationSummaryResponse): string {
+  const { current, baselineMedian, status } = loc.total;
+
+  if (status === 'noVerdict') {
+    return baselineMedian === null || baselineMedian === undefined
+      ? `Not enough history yet to say what's usual for ${loc.location} in this period.`
+      : `${loc.location} has no usual level to compare against for this period — its baseline is zero.`;
+  }
+
+  const medianTxt = formatMedian(baselineMedian) ?? '0';
+  const gap = Math.abs(current - (baselineMedian ?? 0));
+  const gapWord = `${gap} event${gap === 1 ? '' : 's'}`;
+
+  if (status === 'typical') {
+    return `${loc.location} ran ${current} events against a usual ${medianTxt}. The gap is ${gapWord}, under the 25%-and-3-event threshold, so it reads as ordinary week-to-week movement.`;
+  }
+  return `${loc.location} ran ${current} events against a usual ${medianTxt}. That clears both flags — at least 25% off usual and at least 3 events — so it's called out as a real change rather than noise.`;
+}
+
+/**
+ * The "N need(s) attention" / "none need attention" caption shown next to the locations list header.
+ * `null` while `dataStatus` isn't `"ok"`: with fewer than 4 baseline weeks every location's verdict is
+ * `noVerdict` by construction (no baseline to judge against), so "none need attention" would read as a
+ * real all-clear when it's actually "we can't tell yet" — the caption says nothing instead of lying.
+ */
+export function locationsAttentionCaption(locations: LocationSummaryResponse[], dataStatus: DataStatus): string | null {
+  if (dataStatus !== 'ok') {
+    return null;
+  }
+  const count = filterNeedsAttention(locations).length;
+  return count === 0 ? 'none need attention' : `${count} need${count === 1 ? 's' : ''} attention`;
 }
 
 /**

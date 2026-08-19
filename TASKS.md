@@ -93,6 +93,20 @@ real visual treatment, not error styling.
 
 ---
 
+## 6. Post-plan refinements (raised during review) — `in progress`
+
+**Owner:** orchestrator + Sonnet agent · Recorded in `ai-log/12-post-plan-refinement.md`. `PLAN.md` untouched.
+
+- [x] **Comparison history** — expose the individual windows behind the median. One API field
+      (`comparisonHistory`); the median is now computed *from the returned list*, so history and baseline
+      cannot drift. 35 backend tests pass; verified against the oracle for a completed week, an in-progress
+      week (equivalent elapsed windows), and insufficient history.
+- [x] **Prioritisation UI** — "needs attention" summary above the existing table, plus a
+      "Largest change: X" line derived from `byType`. No backend change: locations already arrive
+      sorted worst-first and per-type data is already present. 59 frontend tests pass.
+
+---
+
 ## 5. Cross-stack verification, README, ai-log reflection — `in progress`
 
 **Owner:** orchestrator
@@ -101,4 +115,15 @@ real visual treatment, not error styling.
 - [x] Backend aggregates verified against an independent oracle (0 differences, 5 cases)
 - [x] Cross-stack run verified: `docker compose up -d` → API → `npm start`, dev proxy, and the
       `noActivity` / `insufficientHistory` states confirmed through the full stack
-- [ ] ai-log reflection/index naming specific moments where agent output was corrected
+- [x] Containerized API + web in compose (images build; `seed.sql` asserted present in the publish output)
+- [x] Regenerated `frontend/package-lock.json` so `npm ci` works on **both** Windows and Linux, and
+      reverted `frontend/Dockerfile` from the `npm install` workaround back to `npm ci`. Root cause: the
+      Windows-generated lockfile never recorded `@emnapi/core`/`@emnapi/runtime`, transitive deps of the
+      wasm fallback that Alpine (musl) resolves but Windows does not. Fixed by regenerating the lockfile
+      inside a Linux container, which added them while keeping the win32 entries.
+- [x] End-to-end `docker compose up` verified **from a clean volume** (`down -v` first, so this is the
+      real first-run reviewer path): sqlserver reports healthy → API waits on the healthcheck → migration
+      creates the schema → `Seed import complete: 20 accounts, 12626 activity_events` from `/app/seed.sql`
+      → nginx proxies `/api` through to the API → aggregates match the oracle (account 1, week of
+      2026-07-20: 53 vs median 46.5; history `[50, 43, 62, 39, 47, 47, 36, 46]`).
+- [ ] ai-log reflection/index naming specific moments where agent output was corrected *(last step)*
