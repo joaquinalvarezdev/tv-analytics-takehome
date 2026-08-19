@@ -11,6 +11,48 @@ services:
       - "14330:1433"
     volumes:
       - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      # SQL Server takes ~20-40s to accept connections after container start; the `api` service's
+      # depends_on: condition: service_healthy waits on this instead of racing a cold DB.
+      # sqlcmd18 defaults to encrypted connections and validates the server cert, so -C ("trust
+      # server certificate") is required against the container's self-signed cert.
+      test:
+        - CMD-SHELL
+        - /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" -b -o /dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      # Build context is the repo root, not backend/: Relay.Api.csproj links
+      # ../../seed.sql, so the seed file must be inside the build context. See
+      # backend/Dockerfile for the full explanation.
+      context: .
+      dockerfile: backend/Dockerfile
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      # Demo stack: keep Swagger UI available.
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      # Inside the compose network the DB is reached by service name + container port
+      # (sqlserver:1433), not localhost:14330 (that's only the host-side mapping used by
+      # appsettings.Development.json for the `dotnet run` local-dev flow).
+      ConnectionStrings__RelayDb: "Server=sqlserver,1433;Database=RelayAnalytics;User Id=sa;Password=RelayLocal123!;TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "8081:8080"
+
+  web:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      - api
+    ports:
+      - "8080:80"
 
 volumes:
   sqlserver_data:
