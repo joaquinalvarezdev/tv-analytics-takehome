@@ -8,6 +8,8 @@ and which of their locations needs attention.
 - **AI interaction log:** [`ai-log/`](ai-log/) — index, reflection, verbatim agent briefs, and the corrections that mattered
 - **Task checklist:** [`TASKS.md`](TASKS.md)
 
+![The weekly summary dashboard: a verdict headline, the comparison-history chart with its median line, and per-type and per-location breakdowns](docs/dashboard.png)
+
 ---
 
 ## Running it
