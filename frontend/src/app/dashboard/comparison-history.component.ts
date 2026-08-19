@@ -111,6 +111,18 @@ import { buildTrendChart, formatMedian } from './dashboard-formatting';
           }
         </ul>
       </div>
+    } @else {
+      <!--
+        An empty chart section reads as a rendering failure rather than a real state, so the card
+        stays and says why it is empty. Every other empty state on this page explains itself; this
+        one used to just disappear.
+      -->
+      <div class="mt-14 rounded-[10px] border border-border bg-surface px-5 py-6 sm:px-[30px]">
+        <h2 class="mb-2 text-[13px] font-semibold tracking-wide text-ink-soft uppercase">No comparable periods yet</h2>
+        <p class="max-w-[62ch] text-sm leading-relaxed text-ink-subtle">
+          There is no earlier fully-observed week to compare this one against, so there is nothing to chart.
+        </p>
+      </div>
     }
   `,
 })

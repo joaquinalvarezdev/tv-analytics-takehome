@@ -210,10 +210,15 @@ is compared against equivalently partial history, never whole weeks.
 
 ## How this was built (agent-first)
 
-The orchestrating model owned product interpretation, the API contract, architecture, integration, and final
-verification; Sonnet implementation agents did the coding, each with a scoped brief and explicit file
-boundaries. Where work was genuinely independent it ran in parallel — the domain logic was built in an
-isolated git worktree alongside the EF layer, because both compile the same projects.
+Developed in [Orca](https://onorca.dev), an agentic IDE, driving Claude Code. The orchestrating model owned
+product interpretation, the API contract, architecture, integration, and final verification; Sonnet
+implementation agents did the coding, each with a scoped brief and explicit file boundaries.
+
+Where work was genuinely independent it ran in **parallel**, which is the main thing the tooling bought:
+the domain logic and the EF/database layer were built at the same time, the second in an isolated **git
+worktree**, because both compile the same .NET projects and would otherwise have raced on the same build
+outputs. Parallelism was used only where it removed waiting, never where it would have created merge
+conflicts or coordination overhead.
 
 Aggregation correctness was not checked with the code that produced it. A **separate oracle** — an independent
 Python implementation parsing `seed.sql` — recomputes the same summaries, and live API responses were

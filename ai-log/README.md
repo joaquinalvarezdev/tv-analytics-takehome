@@ -2,14 +2,20 @@
 
 ## Tools and models, honestly
 
-Everything here was built with **Claude Code**. The planning session (`01`) is logged as **Fable 5**;
-implementation was orchestrated by **Opus 5**, which owned product interpretation, the API contract,
-architecture, review, integration and final verification, and wrote no feature code except small
-review fixes. **Sonnet 5 subagents** wrote essentially all of the implementation, each with a scoped
-brief and explicit file boundaries. The UI redesign was authored by the human in **Claude Design** and
-imported through its MCP server. Two tools did the verifying rather than the building: a **Python +
-zoneinfo oracle** that recomputes every aggregate independently of the C#, and **Playwright driving
-real Edge** for the browser checks. No other AI tooling was used.
+Built in **[Orca](https://onorca.dev)** as the agentic IDE, driving **Claude Code**. Orca is what made
+the working style practical rather than theoretical: several implementation agents running in parallel,
+with **git worktrees** isolating any that would otherwise contend for the same build outputs — the
+domain logic and the EF layer were written simultaneously that way, since both compile the same .NET
+projects.
+
+The planning session (`01`) is logged as **Fable 5**; implementation was orchestrated by **Opus 5**,
+which owned product interpretation, the API contract, architecture, review, integration and final
+verification, and wrote no feature code except small review fixes. **Sonnet 5 subagents** wrote
+essentially all of the implementation, each with a scoped brief and explicit file boundaries. The UI
+redesign was authored by the human in **Claude Design** and imported through its MCP server. Two tools
+did the verifying rather than the building: a **Python + zoneinfo oracle** that recomputes every
+aggregate independently of the C#, and **Playwright driving real Edge** for the browser checks. No
+other AI tooling was used.
 
 The division was deliberate: agents are fast at producing code and unreliable at deciding what is
 correct, so nothing that defined *meaning* — what "normal" is, what the API promises, which numbers

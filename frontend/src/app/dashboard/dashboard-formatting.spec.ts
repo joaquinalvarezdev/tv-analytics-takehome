@@ -24,6 +24,7 @@ import {
   rowTone,
   weekOptionLabel,
   groupWeekOptionsByMonth,
+  insufficientHistoryReason,
 } from './dashboard-formatting';
 
 describe('formatDeltaRatio', () => {
@@ -466,5 +467,38 @@ describe('rowTone', () => {
   it('gives typical a calm tone and noVerdict a muted tone', () => {
     expect(rowTone('typical')).toBe('calm');
     expect(rowTone('noVerdict')).toBe('muted');
+  });
+});
+
+describe('insufficientHistoryReason', () => {
+  it('names the partial first week when weeks were dropped for being partly observed', () => {
+    // Real case: Evergreen Landscaping's first event is Tue 3 Feb, so the week of 2 Feb is partial
+    // and excluded. Saying only "0 complete prior weeks exist" contradicts a week picker that
+    // plainly offers 2-8 Feb with events in it.
+    const text = insufficientHistoryReason(0, '2026-02-09', '2026-02-02');
+
+    expect(text).toContain('No complete prior weeks of history yet');
+    expect(text).toContain('starts partway through the week of 2–8 Feb 2026');
+  });
+
+  it('still names it once some weeks have become comparable', () => {
+    const text = insufficientHistoryReason(2, '2026-02-23', '2026-02-02');
+
+    expect(text).toContain('Only 2 complete prior weeks');
+    expect(text).toContain("first partial week isn't counted");
+  });
+
+  it('does not claim a partial week when none was dropped', () => {
+    // First event on the Monday: every calendar week since is comparable, so there is nothing to explain.
+    const text = insufficientHistoryReason(2, '2026-02-16', '2026-02-02');
+
+    expect(text).not.toContain('partway through');
+  });
+
+  it('falls back cleanly when the account has no first week', () => {
+    const text = insufficientHistoryReason(0, '2026-02-09', null);
+
+    expect(text).toContain('at least 4 are needed');
+    expect(text).not.toContain('partway through');
   });
 });

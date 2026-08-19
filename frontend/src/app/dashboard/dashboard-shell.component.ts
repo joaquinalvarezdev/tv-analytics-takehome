@@ -86,7 +86,10 @@ import { WeeklySummaryDataService } from './weekly-summary-data.service';
                 There is nothing to compare yet — activity will appear here once events are recorded.
               </p>
             } @else {
-              <app-account-verdict [summary]="summary" />
+              <app-account-verdict
+                [summary]="summary"
+                [firstSelectableWeekStart]="data.selectedAccount()?.firstSelectableWeekStart ?? null"
+              />
 
               <app-comparison-history
                 [history]="summary.comparisonHistory"

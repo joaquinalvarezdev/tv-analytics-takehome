@@ -379,6 +379,57 @@ export function formatAxisDate(dateStr: string): string {
   return `${day} ${MONTH_NAMES[month - 1]}`;
 }
 
+/**
+ * Minimum comparable windows the API requires before it will give a verdict. Mirrors the backend's
+ * `ReportingRules.MinimumBaselineWeeks` for explanatory copy only — never to make a decision here.
+ */
+const MINIMUM_COMPARABLE_WEEKS = 4;
+
+/** Whole weeks between two Monday-aligned `yyyy-MM-dd` dates. Exact, since both are week starts. */
+function weeksBetween(fromDateStr: string, toDateStr: string): number {
+  const from = parseDateParts(fromDateStr);
+  const to = parseDateParts(toDateStr);
+  const ms = Date.UTC(to.year, to.month - 1, to.day) - Date.UTC(from.year, from.month - 1, from.day);
+  return Math.round(ms / (7 * 24 * 60 * 60 * 1000));
+}
+
+/**
+ * Explains an `insufficientHistory` verdict in terms a reader can reconcile with the week picker.
+ *
+ * "Only 0 complete prior weeks of history exist" reads as a contradiction when the picker plainly
+ * offers an earlier week that has events in it. The real reason is that an account whose activity
+ * starts midweek has a first week that is only partially observed, and a partial week is excluded
+ * from comparison entirely rather than counted short.
+ *
+ * That exclusion is inferred, not invented: every calendar week between the account's first week and
+ * the reported one that did *not* become a comparable window can only have been dropped for that
+ * reason. Both counts come straight from the API, so this states a fact rather than reimplementing
+ * the backend's eligibility rule.
+ */
+export function insufficientHistoryReason(
+  baselineWeeksUsed: number,
+  weekStart: string,
+  firstSelectableWeekStart: string | null | undefined,
+): string {
+  const counted =
+    baselineWeeksUsed === 0
+      ? 'No complete prior weeks of history yet'
+      : `Only ${baselineWeeksUsed} complete prior week${baselineWeeksUsed === 1 ? '' : 's'} of history so far`;
+  const base = `${counted} — at least ${MINIMUM_COMPARABLE_WEEKS} are needed before a comparison is meaningful.`;
+
+  if (firstSelectableWeekStart === null || firstSelectableWeekStart === undefined) {
+    return base;
+  }
+
+  const calendarWeeksBefore = weeksBetween(firstSelectableWeekStart, weekStart);
+  if (calendarWeeksBefore <= baselineWeeksUsed) {
+    return base;
+  }
+
+  const firstWeek = formatWeekRange(firstSelectableWeekStart, addDaysToDateString(firstSelectableWeekStart, 6));
+  return `${base} Activity starts partway through the week of ${firstWeek}, so that first partial week isn't counted.`;
+}
+
 export function buildTrendChart(
   history: readonly HistoricalComparisonResponse[],
   currentTotal: number,

@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 import type { WeeklySummaryResponse } from '../api/generated/models/weekly-summary-response';
 import {
   accountHeadline,
+  insufficientHistoryReason,
   formatDeltaRatio,
   formatHumanDate,
   formatMedian,
@@ -35,11 +36,7 @@ import { StatusDotComponent } from './status-dot.component';
       <p class="mb-1.5 max-w-[52ch] text-lg leading-normal text-pretty text-ink-muted sm:text-[19px]">
         {{ summary().totals.current }} events this period.
       </p>
-      <p class="max-w-[60ch] text-sm leading-relaxed text-ink-subtle">
-        Only {{ summary().baselineWeeksUsed }} complete prior week{{ summary().baselineWeeksUsed === 1 ? '' : 's' }} of
-        history exist{{ summary().baselineWeeksUsed === 1 ? 's' : '' }} for this account — at least 4 are needed
-        before a comparison is meaningful.
-      </p>
+      <p class="max-w-[60ch] text-sm leading-relaxed text-ink-subtle">{{ historyReason() }}</p>
     } @else if (medianText(); as medianTxt) {
       <p class="mb-1.5 max-w-[52ch] text-lg leading-normal text-pretty text-ink-muted sm:text-[19px]">
         {{ summary().totals.current }} events {{ inProgress() ? 'so far' : 'this week' }}, against a usual
@@ -58,6 +55,15 @@ import { StatusDotComponent } from './status-dot.component';
 })
 export class AccountVerdictComponent {
   readonly summary = input.required<WeeklySummaryResponse>();
+  /**
+   * The selected account's first selectable week, used only to explain an `insufficientHistory`
+   * verdict — see `insufficientHistoryReason`. Null when the account has no activity at all.
+   */
+  readonly firstSelectableWeekStart = input<string | null>(null);
+
+  protected readonly historyReason = computed(() =>
+    insufficientHistoryReason(this.summary().baselineWeeksUsed, this.summary().weekStart, this.firstSelectableWeekStart()),
+  );
 
   protected readonly headline = computed(() => accountHeadline(this.summary().dataStatus, this.summary().totals.status));
 
