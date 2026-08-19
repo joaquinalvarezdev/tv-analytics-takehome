@@ -107,7 +107,7 @@ real visual treatment, not error styling.
 
 ---
 
-## 5. Cross-stack verification, README, ai-log reflection — `in progress`
+## 5. Cross-stack verification, README, ai-log reflection — `done`
 
 **Owner:** orchestrator
 
@@ -126,4 +126,4 @@ real visual treatment, not error styling.
       creates the schema → `Seed import complete: 20 accounts, 12626 activity_events` from `/app/seed.sql`
       → nginx proxies `/api` through to the API → aggregates match the oracle (account 1, week of
       2026-07-20: 53 vs median 46.5; history `[50, 43, 62, 39, 47, 47, 36, 46]`).
-- [ ] ai-log reflection/index naming specific moments where agent output was corrected *(last step)*
+- [x] ai-log reflection/index naming specific moments where agent output was corrected — `ai-log/README.md`

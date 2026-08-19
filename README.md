@@ -5,7 +5,7 @@ and which of their locations needs attention.
 
 - **Stack:** .NET 8 minimal API + EF Core + SQL Server (Docker) · Angular (standalone, signals) + Tailwind
 - **Plan:** [`PLAN.md`](PLAN.md) — written before implementation, deliberately left as-written
-- **AI interaction log:** [`ai-log/`](ai-log/) — prompts, corrections, and what was rejected and why
+- **AI interaction log:** [`ai-log/`](ai-log/) — index, reflection, verbatim agent briefs, and the corrections that mattered
 - **Task checklist:** [`TASKS.md`](TASKS.md)
 
 ---
@@ -174,6 +174,13 @@ live in the **URL query string**, which makes the view survive a reload, shareab
 the back button. That is the required user-controlled persisted input, chosen because it is the option that
 does real work rather than the one that is easiest to bolt on.
 
+**The dashboard makes the baseline visible.** The comparison history is an always-visible bar chart with a
+dashed median line, and every event-type and location row carries a bar with a median tick — so "is this
+normal" is answered by something you can see, not only by a percentage you have to trust. The layout was
+designed by hand in Claude Design and reimplemented here against the real API; the chart is plain CSS, with
+no charting dependency. The scale stays linear even on the 13× burst week, because a log scale would flatten
+an extreme anomaly into something ordinary — dishonest for a feature whose job is flagging what is not normal.
+
 **The account picker is a demo control.** Authentication is out of scope, so it stands in for the signed-in
 identity and is labelled as such in the UI. In production the account would be resolved from the authenticated
 principal server-side; a client-supplied account id would be an authorization hole.
@@ -193,6 +200,11 @@ principal server-side; a client-supplied account id would be an authorization ho
 The three data states are distinguished without magic numbers: `baselineMedian: null` means no baseline is
 computable (`insufficientHistory` / `noActivity`), while `baselineMedian: 0` means the baseline is genuinely
 zero. `deltaRatio` is null exactly when the division is undefined.
+
+The response also carries **`comparisonHistory`** — the individual windows behind the median, so a reader can
+inspect the samples instead of trusting a summary statistic. The median is computed *from the list that is
+returned*, so the two cannot drift apart, and each window inherits the reported week's cutoff: a partial week
+is compared against equivalently partial history, never whole weeks.
 
 ---
 
@@ -217,8 +229,13 @@ mistakes. It is not tidied up; the rejected first attempts are the useful part.
 significant way. The plan proposed showing the last completed week with a verdict plus a separate, raw,
 unclassified "week to date" strip. Review found that under-answered the ticket — it declines to say anything
 about *this* week, which is what the customer is actually asking. Comparing equivalent elapsed windows makes a
-partial-week verdict honest, so the two views collapsed into one. The plan is not retrofitted to hide that;
-the reasoning is in `ai-log/`.
+partial-week verdict honest, so the two views collapsed into one.
+
+Two further changes came after the plan, both raised in review rather than foreseen: exposing the individual
+baseline windows behind the median (`comparisonHistory`), and rebuilding the UI around a redesign so the
+baseline is visible rather than hidden behind a disclosure. Neither changes what "normal" means. The plan is
+not retrofitted to hide any of this; the reasoning is in `ai-log/` — see the
+[index and reflection](ai-log/README.md).
 
 ---
 
