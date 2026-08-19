@@ -35,10 +35,6 @@ public static class ReportingCalendar
     public static DateOnly CurrentWeekStart(DateTime anchorUtc, TimeZoneInfo tz)
         => WeekStartOf(ToLocalDay(anchorUtc, tz));
 
-    /// <summary>The local week start immediately preceding the current week — the last complete week.</summary>
-    public static DateOnly LastCompleteWeekStart(DateTime anchorUtc, TimeZoneInfo tz)
-        => CurrentWeekStart(anchorUtc, tz).AddDays(-7);
-
     /// <summary>
     /// A UTC range suitable for bounding a SQL query for local days in
     /// [<paramref name="localStartInclusive"/>, <paramref name="localEndExclusive"/>).

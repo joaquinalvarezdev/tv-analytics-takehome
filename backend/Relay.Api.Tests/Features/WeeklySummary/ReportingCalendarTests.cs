@@ -84,10 +84,6 @@ public class ReportingCalendarTests
         Assert.Equal(new DateOnly(2026, 7, 20), phoenixCurrent); // no-DST zone, same conclusion
         Assert.Equal(new DateOnly(2026, 7, 27), utcCurrent);     // already Monday in UTC
 
-        Assert.Equal(new DateOnly(2026, 7, 13), ReportingCalendar.LastCompleteWeekStart(anchorUtc, Chicago));
-        Assert.Equal(new DateOnly(2026, 7, 13), ReportingCalendar.LastCompleteWeekStart(anchorUtc, Phoenix));
-        Assert.Equal(new DateOnly(2026, 7, 20), ReportingCalendar.LastCompleteWeekStart(anchorUtc, Utc));
-
         // This derivation depends only on the anchor and time zone, never on whether the account has
         // any events — it is exactly as valid for a zero-activity account.
     }
