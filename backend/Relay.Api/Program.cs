@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Relay.Api;
 using Relay.Api.Data;
 using Relay.Api.Features.WeeklySummary;
 
@@ -54,6 +55,11 @@ builder.Services.AddDbContext<RelayDbContext>(options =>
 builder.Services.AddScoped<WeeklySummaryRepository>();
 builder.Services.AddSingleton<WeeklySummaryService>();
 
+// Every deliberate failure in this API answers with ProblemDetails; these two lines make an
+// *undeliberate* one do the same instead of returning an empty body. See UnhandledExceptionHandler.
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
+
 builder.Services.AddCors(options =>
 {
     // Development-only: lets the Angular dev server (ng serve, port 4200) call the API. Production
@@ -65,6 +71,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// First in the pipeline: nothing downstream can throw past it.
+app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
@@ -79,8 +88,12 @@ app.UseHttpsRedirection();
 // Apply pending migrations, then import seed.sql if the database is empty.
 // SeedImporter is idempotent (skips if `accounts` already has rows), so this is
 // safe to run on every startup.
-using (var scope = app.Services.CreateScope())
+//
+// Set Relay:InitializeDatabaseOnStartup=false where the database is provisioned out of band —
+// migrations applied by a deploy step, or an integration test supplying its own schema and rows.
+if (app.Configuration.GetValue("Relay:InitializeDatabaseOnStartup", defaultValue: true))
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<RelayDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
 
@@ -91,6 +104,12 @@ using (var scope = app.Services.CreateScope())
 app.MapWeeklySummaryEndpoints();
 
 app.Run();
+
+/// <summary>
+/// Named so integration tests can boot this exact application through <c>WebApplicationFactory</c>.
+/// Top-level statements would otherwise compile to an inaccessible internal <c>Program</c> class.
+/// </summary>
+public partial class Program;
 
 /// <summary>
 /// Describes enums in the generated OpenAPI schema as string enums (camelCase, matching
